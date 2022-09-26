@@ -24,6 +24,7 @@ type TrackerConfig struct {
 	RequestConfig               RequestCfg
 	KibanaConfig                KibanaCfg
 	DebugConfig                 DebugCfg
+	MessageProcessorImpl        string
 }
 
 type KafkaCfg struct {
@@ -90,7 +91,7 @@ func Get() *TrackerConfig {
 	options.SetDefault("Environment", "PROD")
 
 	// global logging
-	options.SetDefault("logLevel", "INFO")
+	options.SetDefault("logLevel", "DEBUG")
 	options.SetDefault("Hostname", hostname)
 
 	// kafka config
@@ -118,6 +119,8 @@ func Get() *TrackerConfig {
 
 	// debug config
 	options.SetDefault("debug.log.status.json", false)
+
+	options.SetDefault("message.processor.impl", "db")
 
 	if clowder.IsClowderEnabled() {
 		cfg := clowder.LoadedConfig
@@ -209,6 +212,7 @@ func Get() *TrackerConfig {
 		DebugConfig: DebugCfg{
 			LogStatusJson: options.GetBool("debug.log.status.json"),
 		},
+		MessageProcessorImpl: options.GetString("message.processor.impl"),
 	}
 
 	if clowder.IsClowderEnabled() {

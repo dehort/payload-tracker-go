@@ -41,8 +41,8 @@ type PayloadsData struct {
 
 // PayloadRetrievebyID is the response for the /payloads/{request_id} endpoint
 type PayloadRetrievebyID struct {
-	Data      []SinglePayloadData `json:"data"`
-	Durations map[string]string   `json:"duration"`
+	Data      []PayloadData     `json:"data"`
+	Durations map[string]string `json:"duration"`
 }
 
 type PayloadArchiveLink struct {
@@ -70,8 +70,8 @@ type ErrorResponse struct {
 	Status  int    `json:"status"`
 }
 
-// SinglePayloadData is the data for a single payload
-type SinglePayloadData struct {
+// PayloadData is the data for a single payload
+type PayloadData struct {
 	ID          uint      `json:"id,omitempty"`
 	Service     string    `json:"service,omitempty"`
 	Source      string    `json:"source,omitempty"`

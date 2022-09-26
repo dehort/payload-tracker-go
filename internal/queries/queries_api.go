@@ -115,8 +115,10 @@ var RetrievePayloads = func(dbQuery *gorm.DB, page int, pageSize int, apiQuery s
 	return count, payloads
 }
 
-var RetrieveRequestIdPayloads = func(dbQuery *gorm.DB, reqID string, sortBy string, sortDir string, verbosity string) []structs.SinglePayloadData {
-	var payloads []structs.SinglePayloadData
+type RetrieveRequestIdPayloads func(dbQuery *gorm.DB, reqID string, sortBy string, sortDir string, verbosity string) []structs.PayloadData
+
+var RetrieveRequestIdPayloadsWithDB = func(dbQuery *gorm.DB, reqID string, sortBy string, sortDir string, verbosity string) []structs.PayloadData {
+	var payloads []structs.PayloadData
 
 	fields := defineVerbosity(verbosity)
 
@@ -164,7 +166,7 @@ var RetrieveStatuses = func(dbQuery *gorm.DB, apiQuery structs.Query) (int64, []
 	return count, payloads
 }
 
-func CalculateDurations(payloadData []structs.SinglePayloadData) map[string]string {
+func CalculateDurations(payloadData []structs.PayloadData) map[string]string {
 	//service:source
 
 	mapTimeArray := make(map[string][2]int64)

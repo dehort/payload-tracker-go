@@ -2,12 +2,9 @@ package kafka
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
+	"fmt"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"gorm.io/gorm"
 
 	config "github.com/redhatinsights/payload-tracker-go/internal/config"
 	"github.com/redhatinsights/payload-tracker-go/internal/endpoints"
@@ -61,25 +58,16 @@ func NewConsumer(ctx context.Context, config *config.TrackerConfig, topic string
 // NewConsumerEventLoop creates a new consumer event loop based on the information passed with it
 func NewConsumerEventLoop(
 	ctx context.Context,
-	cfg *config.TrackerConfig,
 	consumer *kafka.Consumer,
-	db *gorm.DB,
+	messageHandler MessageHandler,
 ) {
 
-	sigchan := make(chan os.Signal, 1)
-	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
-	handler := &handler{
-		db: db,
-	}
-
-	run := true
-
-	for run {
+	i := 0
+	for {
 		select {
-		case sig := <-sigchan:
-			l.Log.Infof("Caught Signal %v: terminating\n", sig)
-			run = false
+		case <-ctx.Done():
+			l.Log.Infof("Received shutdown signal.  Ending consume loop.")
+			return
 		default:
 
 			event := consumer.Poll(100)
@@ -87,10 +75,14 @@ func NewConsumerEventLoop(
 				continue
 			}
 
+			i = i + 1
+			//fmt.Println("event:", event)
+			fmt.Println("i:", i)
+
 			switch e := event.(type) {
 			case *kafka.Message:
 				endpoints.IncConsumedMessages()
-				handler.onMessage(ctx, e, cfg)
+				messageHandler.onMessage(ctx, e)
 			case kafka.Error:
 				endpoints.IncConsumeErrors()
 				l.Log.Errorf("Consumer error: %v (%v)\n", e.Code(), e)
@@ -100,6 +92,4 @@ func NewConsumerEventLoop(
 
 		}
 	}
-
-	consumer.Close()
 }
