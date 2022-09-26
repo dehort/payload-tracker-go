@@ -3,11 +3,12 @@ package kafka
 import (
 	"context"
 	"encoding/json"
+    "fmt"
 	"strings"
-	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"gorm.io/gorm"
+    "github.com/prometheus/client_golang/prometheus"
 
 	"github.com/redhatinsights/payload-tracker-go/internal/config"
 	"github.com/redhatinsights/payload-tracker-go/internal/endpoints"
@@ -21,14 +22,28 @@ var (
 	tableNames = []string{"service", "source", "status"}
 )
 
-type handler struct {
-	db *gorm.DB
+type MessageHandler interface {
+	onMessage(ctx context.Context, msg *kafka.Message)
+}
+
+func NewDBBasedMessageHandler(db *gorm.DB, cfg *config.TrackerConfig) MessageHandler {
+	return &DBBasedMessageHandler{
+		db:     db,
+		config: cfg,
+	}
+}
+
+type DBBasedMessageHandler struct {
+	db     *gorm.DB
+	config *config.TrackerConfig
 }
 
 // OnMessage takes in each payload status message and processes it
-func (this *handler) onMessage(ctx context.Context, msg *kafka.Message, cfg *config.TrackerConfig) {
-	// Track the time from beginning of handling the message to the insert
-	start := time.Now()
+func (this *DBBasedMessageHandler) onMessage(ctx context.Context, msg *kafka.Message) {
+
+    callDurationTimer := prometheus.NewTimer(metrics.dbInsertDuration)
+    defer callDurationTimer.ObserveDuration()
+
 	l.Log.Debug("Processing Payload Message ", msg.Value)
 
 	payloadStatus := &message.PayloadStatusMessage{}
@@ -41,8 +56,8 @@ func (this *handler) onMessage(ctx context.Context, msg *kafka.Message, cfg *con
 	}
 
 	// Validate RequestID
-	if cfg.RequestConfig.ValidateRequestIDLength != 0 {
-		if len(payloadStatus.RequestID) != cfg.RequestConfig.ValidateRequestIDLength {
+	if this.config.RequestConfig.ValidateRequestIDLength != 0 {
+		if len(payloadStatus.RequestID) != this.config.RequestConfig.ValidateRequestIDLength {
 			endpoints.IncInvalidConsumerRequestIDs()
 			return
 		}
@@ -67,7 +82,6 @@ func (this *handler) onMessage(ctx context.Context, msg *kafka.Message, cfg *con
 
 	// Status & Service: Always defined in the message
 	existingStatus := queries.GetStatusByName(this.db, payloadStatus.Status)
-	existingService := queries.GetServiceByName(this.db, payloadStatus.Service)
 	if (models.Statuses{}) == existingStatus {
 		statusResult, newStatus := queries.CreateStatusTableEntry(this.db, payloadStatus.Status)
 		if statusResult.Error != nil {
@@ -80,6 +94,7 @@ func (this *handler) onMessage(ctx context.Context, msg *kafka.Message, cfg *con
 		sanitizedPayloadStatus.Status = existingStatus
 	}
 
+	existingService := queries.GetServiceByName(this.db, payloadStatus.Service)
 	if (models.Services{}) == existingService {
 		serviceResult, newService := queries.CreateServiceTableEntry(this.db, payloadStatus.Service)
 		if serviceResult.Error != nil {
@@ -115,9 +130,11 @@ func (this *handler) onMessage(ctx context.Context, msg *kafka.Message, cfg *con
 	// Insert Date
 	sanitizedPayloadStatus.Date = payloadStatus.Date.Time
 
+    fmt.Println("inserting payload")
 	// Insert payload into DB
-	endpoints.ObserveMessageProcessTime(time.Since(start))
 	result := queries.InsertPayloadStatus(this.db, sanitizedPayloadStatus)
+    fmt.Println("inserted payload")
+    fmt.Println("result:", result)
 	if result.Error != nil {
 		endpoints.IncMessageProcessErrors()
 		l.Log.Debug("Failed to insert sanitized PayloadStatus with ERROR: ", result.Error)

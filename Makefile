@@ -1,6 +1,10 @@
-all: build-all
 
-build-all: pt-api pt-consumer pt-migration
+.PHONY: build
+
+build:
+	go build -o pt-api cmd/payload-tracker-api/main.go
+	go build -o pt-consumer cmd/payload-tracker-consumer/main.go
+	go build -o pt-migration internal/migration/main.go
 
 pt-api:
 	go build -o pt-api cmd/payload-tracker-api/main.go

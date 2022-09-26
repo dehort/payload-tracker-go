@@ -1,16 +1,5 @@
 version: '3.1'
 services:
-    # comment out payload-tracker-api stanza to disable it
-    payload-tracker-api:
-        image: payload-tracker-go
-        ports:
-            - "8080:8080"
-        environment:
-            DB_HOST: "localhost"
-        command:
-            - /pt-api
-        depends_on:
-            - payload-tracker-db
     payload-tracker-db:
         image: postgres
         restart: always
@@ -38,7 +27,7 @@ services:
             - KAFKA_ZOOKEEPER_CONNECT=zookeeper:32181
             - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
     redis:
-        image: registry.redhat.io/rhel8/redis-5
+        image: redis
         ports:
             - 6379:6379
         depends_on:

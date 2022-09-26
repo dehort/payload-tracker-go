@@ -17,7 +17,7 @@ import (
 
 var (
 	RetrievePayloads          = queries.RetrievePayloads
-	RetrieveRequestIdPayloads = queries.RetrieveRequestIdPayloads
+	RetrieveRequestIdPayloads = queries.RetrieveRequestIdPayloadsWithDB
 	RequestArchiveLink        = requestArchiveLink
 	Db                        = getDb
 )
@@ -93,48 +93,51 @@ func Payloads(w http.ResponseWriter, r *http.Request) {
 }
 
 // RequestIdPayloads returns a response for /payloads/{request_id}
-func RequestIdPayloads(w http.ResponseWriter, r *http.Request) {
+func RequestIdPayloads(retrieveRequestIdPayloads queries.RetrieveRequestIdPayloads) http.HandlerFunc {
 
-	reqID := chi.URLParam(r, "request_id")
-	verbosity = r.URL.Query().Get("verbosity")
+	return func(w http.ResponseWriter, r *http.Request) {
 
-	q, err := initQuery(r)
+		reqID := chi.URLParam(r, "request_id")
+		verbosity = r.URL.Query().Get("verbosity")
 
-	if err != nil {
-		writeResponse(w, http.StatusBadRequest, getErrorBody(fmt.Sprintf("%v", err), http.StatusBadRequest))
-		return
+		q, err := initQuery(r)
+
+		if err != nil {
+			writeResponse(w, http.StatusBadRequest, getErrorBody(fmt.Sprintf("%v", err), http.StatusBadRequest))
+			return
+		}
+
+		if !stringInSlice(q.SortBy, validIDSortBy) {
+			message := "sort_by must be one of " + strings.Join(validIDSortBy, ", ")
+			writeResponse(w, http.StatusBadRequest, getErrorBody(message, http.StatusBadRequest))
+			return
+		}
+		if !stringInSlice(q.SortDir, validSortDir) {
+			message := "sort_dir must be one of " + strings.Join(validSortDir, ", ")
+			writeResponse(w, http.StatusBadRequest, getErrorBody(message, http.StatusBadRequest))
+			return
+		}
+
+		payloads := retrieveRequestIdPayloads(Db(), reqID, q.SortBy, q.SortDir, verbosity)
+
+		if payloads == nil || len(payloads) == 0 {
+			writeResponse(w, http.StatusNotFound, getErrorBody("payload with id: "+reqID+" not found", http.StatusNotFound))
+			return
+		}
+
+		durations := queries.CalculateDurations(payloads)
+
+		payloadsData := structs.PayloadRetrievebyID{Data: payloads, Durations: durations}
+
+		dataJson, err := json.Marshal(payloadsData)
+		if err != nil {
+			l.Log.Error(err)
+			writeResponse(w, http.StatusInternalServerError, getErrorBody("Internal Server Issue", http.StatusInternalServerError))
+			return
+		}
+
+		writeResponse(w, http.StatusOK, string(dataJson))
 	}
-
-	if !stringInSlice(q.SortBy, validIDSortBy) {
-		message := "sort_by must be one of " + strings.Join(validIDSortBy, ", ")
-		writeResponse(w, http.StatusBadRequest, getErrorBody(message, http.StatusBadRequest))
-		return
-	}
-	if !stringInSlice(q.SortDir, validSortDir) {
-		message := "sort_dir must be one of " + strings.Join(validSortDir, ", ")
-		writeResponse(w, http.StatusBadRequest, getErrorBody(message, http.StatusBadRequest))
-		return
-	}
-
-	payloads := RetrieveRequestIdPayloads(Db(), reqID, q.SortBy, q.SortDir, verbosity)
-
-	if payloads == nil || len(payloads) == 0 {
-		writeResponse(w, http.StatusNotFound, getErrorBody("payload with id: "+reqID+" not found", http.StatusNotFound))
-		return
-	}
-
-	durations := queries.CalculateDurations(payloads)
-
-	payloadsData := structs.PayloadRetrievebyID{Data: payloads, Durations: durations}
-
-	dataJson, err := json.Marshal(payloadsData)
-	if err != nil {
-		l.Log.Error(err)
-		writeResponse(w, http.StatusInternalServerError, getErrorBody("Internal Server Issue", http.StatusInternalServerError))
-		return
-	}
-
-	writeResponse(w, http.StatusOK, string(dataJson))
 }
 
 // PayloadArchiveLink returns a response for /payloads/{request_id}/archiveLink

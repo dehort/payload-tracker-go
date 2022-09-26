@@ -23,6 +23,7 @@ type TrackerConfig struct {
 	DatabaseConfig              DatabaseCfg
 	RequestConfig               RequestCfg
 	KibanaConfig                KibanaCfg
+    MessageProcessorImpl        string
 }
 
 type KafkaCfg struct {
@@ -85,7 +86,7 @@ func Get() *TrackerConfig {
 	options.SetDefault("Environment", "PROD")
 
 	// global logging
-	options.SetDefault("logLevel", "INFO")
+    options.SetDefault("logLevel", "DEBUG")
 	options.SetDefault("Hostname", hostname)
 
 	// kafka config
@@ -110,6 +111,8 @@ func Get() *TrackerConfig {
 	options.SetDefault("kibana.url", "https://kibana.apps.crcs02ue1.urby.p1.openshiftapps.com/app/kibana#/discover")
 	options.SetDefault("kibana.index", "43c5fed0-d5ce-11ea-b58c-a7c95afd7a5d") // the index grabbed from the kibana url
 	options.SetDefault("kibana.service.field", "app")
+
+	options.SetDefault("message.processor.impl", "db")
 
 	if clowder.IsClowderEnabled() {
 		cfg := clowder.LoadedConfig
@@ -198,6 +201,7 @@ func Get() *TrackerConfig {
 			Index:        options.GetString("kibana.index"),
 			ServiceField: options.GetString("kibana.service.field"),
 		},
+        MessageProcessorImpl: options.GetString("message.processor.impl"),
 	}
 
 	if clowder.IsClowderEnabled() {
