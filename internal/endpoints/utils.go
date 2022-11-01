@@ -15,6 +15,7 @@ import (
 	"github.com/redhatinsights/payload-tracker-go/internal/db"
 	l "github.com/redhatinsights/payload-tracker-go/internal/logging"
 	"github.com/redhatinsights/payload-tracker-go/internal/structs"
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
@@ -149,6 +150,11 @@ func checkForRole(r *http.Request, role string) (int, error) {
 	}
 
 	if !stringInSlice(role, identityHeaderData.Identity.Associate.Roles) {
+		l.Log.WithFields(logrus.Fields{
+			"role":              role,
+			"roles_from_header": identityHeaderData.Identity.Associate.Roles,
+			"identity_header":   identityHeader,
+		}).Infof("Unable to find required role")
 		return http.StatusForbidden, errors.New("You do not have the required permissions to access this resource")
 	}
 
