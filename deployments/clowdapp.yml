@@ -92,6 +92,8 @@ objects:
         env:
           - name: LOG_LEVEL
             value: ${LOGLEVEL}
+          - name: DEBUG_LOGRAWSTATUSEVENT
+            value: ${LOGRAWSTATUSEVENT}
     jobs:
     - name: vacuum
       schedule: '@daily'
@@ -182,3 +184,5 @@ parameters:
   value: 4b37e920-1ade-11ec-b3d0-a39435352faa
 - name: KIBANA_SERVICE_FIELD
   value: app
+- name: LOGRAWSTATUSEVENT
+  value: "false"
