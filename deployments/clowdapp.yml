@@ -74,8 +74,6 @@ objects:
             value: ${KIBANA_INDEX}
           - name: KIBANA_SERVICE_FIELD
             value: ${KIBANA_SERVICE_FIELD}
-          - name: DEBUG_LOG_STATUS_JSON
-            value: ${DEBUG_LOG_STATUS_JSON}
     - name: consumer
       minReplicas: ${{CONSUMER_REPLICAS}}
       podSpec:  
@@ -94,6 +92,8 @@ objects:
         env:
           - name: LOG_LEVEL
             value: ${LOGLEVEL}
+          - name: DEBUG_LOG_STATUS_JSON
+            value: ${DEBUG_LOG_STATUS_JSON}
     jobs:
     - name: vacuum
       schedule: '@daily'
