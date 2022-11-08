@@ -96,7 +96,7 @@ objects:
             value: ${DEBUG_LOG_STATUS_JSON}
     jobs:
     - name: vacuum
-      schedule: '@daily'
+      schedule: ${CLEANER_SCHEDULE}
       suspend: ${{CLEANER_SUSPEND}}
       podSpec:
         image: quay.io/cloudservices/payload-tracker-go:${IMAGE_TAG}
@@ -176,6 +176,8 @@ parameters:
   required: true
 - name: CLEANER_SUSPEND
   value: 'true'
+- name: CLEANER_SCHEDULE
+  value: "00 07 * * *"
 - name: STORAGE_BROKER_URL
   value: "http://storage-broker-processor:8000/archive/url"
 - name: KIBANA_URL
