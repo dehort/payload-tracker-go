@@ -177,7 +177,7 @@ parameters:
 - name: CLEANER_SUSPEND
   value: 'true'
 - name: CLEANER_SCHEDULE
-  value: "00 07 * * *"
+  value: "00 10 * * *"
 - name: STORAGE_BROKER_URL
   value: "http://storage-broker-processor:8000/archive/url"
 - name: KIBANA_URL
