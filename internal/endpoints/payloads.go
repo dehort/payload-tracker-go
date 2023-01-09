@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 var (
 	RetrievePayloads          = queries.RetrievePayloads
 	RetrieveRequestIdPayloads = queries.RetrieveRequestIdPayloads
-	RequestArchiveLink        = requestArchiveLink
 	Db                        = getDb
 )
 
@@ -26,10 +26,10 @@ var (
 	verbosity string = "0"
 )
 
-func LinkHandler(cfg config.TrackerConfig) http.HandlerFunc {
+func CreatePayloadArchiveLinkHandler(cfg config.TrackerConfig) http.HandlerFunc {
 	switch cfg.RequestConfig.RequestorImpl {
 	case "storage-broker":
-		return PayloadArchiveLink
+		return PayloadArchiveLink(RequestArchiveLink(cfg.StorageBrokerURL, cfg.StorageBrokerRequestTimeout))
 	case "mock":
 		return MockArchiveLink
 	default:
@@ -138,43 +138,46 @@ func RequestIdPayloads(w http.ResponseWriter, r *http.Request) {
 }
 
 // PayloadArchiveLink returns a response for /payloads/{request_id}/archiveLink
-func PayloadArchiveLink(w http.ResponseWriter, r *http.Request) {
+func PayloadArchiveLink(requestArchiveLink func(context.Context, string) (*structs.PayloadArchiveLink, error)) http.HandlerFunc {
 
-	reqID := chi.URLParam(r, "request_id")
+	return func(w http.ResponseWriter, r *http.Request) {
 
-	statusCode, err := checkForRole(r, config.Get().StorageBrokerURLRole)
-	if err != nil {
-		writeResponse(w, statusCode, getErrorBody(fmt.Sprintf("%v", err), statusCode))
-		return
+		reqID := chi.URLParam(r, "request_id")
+
+		statusCode, err := checkForRole(r, config.Get().StorageBrokerURLRole)
+		if err != nil {
+			writeResponse(w, statusCode, getErrorBody(fmt.Sprintf("%v", err), statusCode))
+			return
+		}
+
+		if !isValidUUID(reqID) {
+			IncInvalidAPIRequestIDs()
+			writeResponse(w, http.StatusBadRequest, getErrorBody(fmt.Sprintf("%s is not a valid UUID", reqID), http.StatusBadRequest))
+			return
+		}
+
+		payloadArchiveLink, err := requestArchiveLink(r.Context(), reqID)
+		if err != nil {
+			l.Log.Errorf("Error getting archive link from storage-broker for request id: %s, error: %v", reqID, err)
+			writeResponse(w, http.StatusInternalServerError, getErrorBody(fmt.Sprintf("%v", err), http.StatusInternalServerError))
+			return
+		}
+
+		if payloadArchiveLink.Url == "" {
+			writeResponse(w, http.StatusNotFound, getErrorBody("Payload not found", http.StatusNotFound))
+			return
+		}
+
+		dataJson, err := json.Marshal(payloadArchiveLink)
+		if err != nil {
+			l.Log.Error(err)
+			writeResponse(w, http.StatusInternalServerError, getErrorBody("Error converting parsed response to json", http.StatusInternalServerError))
+			return
+		}
+
+		l.Log.Infof("Link generated for payload %s from identity %s: %s", reqID, r.Header.Get("x-rh-identity"), string(dataJson))
+		writeResponse(w, http.StatusOK, string(dataJson))
 	}
-
-	if !isValidUUID(reqID) {
-		IncInvalidAPIRequestIDs()
-		writeResponse(w, http.StatusBadRequest, getErrorBody(fmt.Sprintf("%s is not a valid UUID", reqID), http.StatusBadRequest))
-		return
-	}
-
-	payloadArchiveLink, err := RequestArchiveLink(r, reqID)
-	if err != nil {
-		l.Log.Errorf("Error getting archive link from storage-broker for request id: %s, error: %v", reqID, err)
-		writeResponse(w, http.StatusInternalServerError, getErrorBody(fmt.Sprintf("%v", err), http.StatusInternalServerError))
-		return
-	}
-
-	if payloadArchiveLink.Url == "" {
-		writeResponse(w, http.StatusNotFound, getErrorBody("Payload not found", http.StatusNotFound))
-		return
-	}
-
-	dataJson, err := json.Marshal(payloadArchiveLink)
-	if err != nil {
-		l.Log.Error(err)
-		writeResponse(w, http.StatusInternalServerError, getErrorBody("Error converting parsed response to json", http.StatusInternalServerError))
-		return
-	}
-
-	l.Log.Infof("Link generated for payload %s from identity %s: %s", reqID, r.Header.Get("x-rh-identity"), string(dataJson))
-	writeResponse(w, http.StatusOK, string(dataJson))
 }
 
 func MockArchiveLink(w http.ResponseWriter, r *http.Request) {

@@ -106,12 +106,6 @@ func mockedRequestIdPayloads(_ *gorm.DB, _ string, _ string, _ string, _ string)
 	return reqIdPayloadData
 }
 
-func mockedRequestArchiveLink(_ *http.Request, reqID string) (*structs.PayloadArchiveLink, error) {
-	return &structs.PayloadArchiveLink{
-		Url: "www.example.com",
-	}, nil
-}
-
 var _ = Describe("Payloads", func() {
 	var (
 		handler http.Handler
@@ -450,9 +444,15 @@ var _ = Describe("PayloadArchiveLink", func() {
 
 	BeforeEach(func() {
 		rr = httptest.NewRecorder()
-		handler = http.HandlerFunc(endpoints.PayloadArchiveLink)
 
-		endpoints.RequestArchiveLink = mockedRequestArchiveLink
+		// Mock out the storage broker server.  This allows us to test the response handling code.
+		mockStorageBrokerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("{\"url\": \"www.example.com\"}"))
+		}))
+
+		handler = http.HandlerFunc(endpoints.PayloadArchiveLink(endpoints.RequestArchiveLink(mockStorageBrokerServer.URL, 10)))
 
 		requestId = getUUID()
 		query = make(map[string]interface{})

@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/redhatinsights/payload-tracker-go/internal/config"
 	"github.com/redhatinsights/payload-tracker-go/internal/db"
 	l "github.com/redhatinsights/payload-tracker-go/internal/logging"
 	"github.com/redhatinsights/payload-tracker-go/internal/structs"
@@ -169,29 +169,33 @@ func writeResponse(w http.ResponseWriter, status int, message string) {
 }
 
 // Send a request for an ArchiveLink to storage-broker
-func requestArchiveLink(r *http.Request, reqID string) (*structs.PayloadArchiveLink, error) {
-	cfg := config.Get()
-	client := http.Client{
-		Timeout: time.Duration(cfg.StorageBrokerRequestTimeout) * time.Millisecond,
-	}
+func RequestArchiveLink(baseUrl string, timeout int) func(ctx context.Context, reqID string) (*structs.PayloadArchiveLink, error) {
 
-	response, err := client.Get(config.Get().StorageBrokerURL + "?request_id=" + reqID)
-	if err != nil {
-		return nil, err
-	}
+	return func(ctx context.Context, reqID string) (*structs.PayloadArchiveLink, error) {
+		client := http.Client{
+			Timeout: time.Duration(timeout) * time.Millisecond,
+		}
 
-	body, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return nil, err
-	}
+		response, err := client.Get(baseUrl + "?request_id=" + reqID)
+		if err != nil {
+			return nil, err
+		}
 
-	var archiveLink structs.PayloadArchiveLink
-	err = json.Unmarshal(body, &archiveLink)
-	if err != nil {
-		return nil, err
-	}
+		defer response.Body.Close()
 
-	return &archiveLink, nil
+		body, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var archiveLink structs.PayloadArchiveLink
+		err = json.Unmarshal(body, &archiveLink)
+		if err != nil {
+			return nil, err
+		}
+
+		return &archiveLink, nil
+	}
 }
 
 func isValidUUID(id string) bool {
