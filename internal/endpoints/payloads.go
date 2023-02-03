@@ -22,10 +22,6 @@ var (
 	Db                        = getDb
 )
 
-var (
-	verbosity string = "0"
-)
-
 func CreatePayloadArchiveLinkHandler(cfg config.TrackerConfig) http.HandlerFunc {
 	switch cfg.RequestConfig.RequestorImpl {
 	case "storage-broker":
@@ -96,7 +92,7 @@ func Payloads(w http.ResponseWriter, r *http.Request) {
 func RequestIdPayloads(w http.ResponseWriter, r *http.Request) {
 
 	reqID := chi.URLParam(r, "request_id")
-	verbosity = r.URL.Query().Get("verbosity")
+	verbosity := r.URL.Query().Get("verbosity")
 
 	q, err := initQuery(r)
 
