@@ -21,14 +21,16 @@ pipeline {
         // --------------------------------------------
         // Options that must be configured by app owner
         // --------------------------------------------
-        APP_NAME="platform-changelog"  // name of app-sre "application" folder this component lives in
-        COMPONENT_NAME="platform-changelog-go"  // name of app-sre "resourceTemplate" in deploy.yaml for this component
-        IMAGE="quay.io/cloudservices/platform-changelog-go"  
+        APP_NAME="payload-tracker"  // name of app-sre "application" folder this component lives in
+        COMPONENT_NAME="payload-tracker-go"  // name of app-sre "resourceTemplate" in deploy.yaml for this component
+        IMAGE="quay.io/cloudservices/payload-tracker-go"  
 
-        IQE_PLUGINS="platform-changelog"
+        // ADD BACK IN WHEN PAYLOAD-TRACKER-GO HAS SMOKE TESTS
+        IQE_PLUGINS="payload-tracker"
         IQE_MARKER_EXPRESSION="smoke"
         IQE_FILTER_EXPRESSION=""
         IQE_CJI_TIMEOUT="30m"
+        EXTRA_DEPLOY_ARGS="--single-replicas"
 
         CICD_URL='https://raw.githubusercontent.com/RedHatInsights/bonfire/master/cicd'
     }
@@ -63,7 +65,13 @@ pipeline {
                     curl -s $CICD_URL/bootstrap.sh > .cicd_bootstrap.sh
                     source ./.cicd_bootstrap.sh
 
-                    source "${CICD_ROOT}/post_test_results.sh"
+                    source $CICD_ROOT/build.sh
+                    source $CICD_ROOT/deploy_ephemeral_env.sh
+                    oc rsh -n $NAMESPACE $(oc get pods -n $NAMESPACE -o name | grep "payload-tracker-api") ./pt-seeder
+                    COMPONENT_NAME=payload-tracker
+                    source $CICD_ROOT/cji_smoke_test.sh
+                    source $CICD_ROOT/post_test_results.sh
+
                 '''
             }
         }

@@ -12,6 +12,9 @@ teardown() {
     echo "Running teardown..."
 
     docker rm -f "$TEST_CONTAINER_NAME"
+
+    # remove postgres container
+    docker rm -f postgres
     TEARDOWN_RAN=1
 }
 
@@ -33,6 +36,11 @@ docker build -f "$DOCKERFILE" -t "$IMAGE" .
 
 echo -e "\n---------------------------------------------------------------\n"
 
+echo "Starting postgres container"
+docker run --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5 -d --rm --name postgres -e POSTGRES_PASSWORD=crc -e POSTGRES_USER=crc -e POSTGRES_DB=crc -p 0.0.0.0:5432:5432 postgres
+
+echo -e "\n---------------------------------------------------------------\n"
+
 echo "Running container"
 docker run -d --rm --name "$TEST_CONTAINER_NAME" "$IMAGE" sleep infinity
 
@@ -40,6 +48,28 @@ echo -e "\n---------------------------------------------------------------\n"
 
 echo "Installing dependencies"
 docker exec --workdir /workdir "$TEST_CONTAINER_NAME" make install > 'artifacts/install_logs.txt'
+
+echo -e "\n---------------------------------------------------------------\n"
+
+echo "Building migrations"
+docker exec --workdir /workdir "$TEST_CONTAINER_NAME" go build -o pt-migration internal/migration/main.go
+
+echo -e "\n---------------------------------------------------------------\n"
+
+echo "Migrating database"
+docker exec --workdir /workdir "$TEST_CONTAINER_NAME" make run-migration > 'artifacts/migration_logs.txt'
+MIGRATION_RESULT=$?
+
+cat artifacts/migration_logs.txt
+
+if [ $MIGRATION_RESULT -eq 0 ]; then
+    echo "Migration ran successfully"
+else
+    echo "Migration failed..."
+    sh "exit 1" 
+    # why is this not exiting the script?
+    exit 1
+fi
 
 echo -e "\n---------------------------------------------------------------\n"
 echo "Running tests"
