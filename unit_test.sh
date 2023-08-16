@@ -3,7 +3,9 @@
 TEST_RESULT=0
 DOCKERFILE='Dockerfile-test'
 IMAGE='tracker'
+POSTGRES_IMAGE='quay.io/cloudservices/postgresql-rds:15-1'
 TEARDOWN_RAN=0
+
 
 teardown() {
 
@@ -31,13 +33,21 @@ get_N_chars_commit_hash() {
 
 TEST_CONTAINER_NAME="tracker-$(get_N_chars_commit_hash 7)"
 
-echo "Building image"
-docker build -f "$DOCKERFILE" -t "$IMAGE" .
+echo -e "\n---------------------------------------------------------------\n"
+
+echo "Pulling postgres image"
+docker pull $POSTGRES_IMAGE
 
 echo -e "\n---------------------------------------------------------------\n"
 
 echo "Starting postgres container"
-docker run --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5 -d --rm --name postgres -e POSTGRES_PASSWORD=crc -e POSTGRES_USER=crc -e POSTGRES_DB=crc -p 0.0.0.0:5432:5432 postgres
+docker run --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5 -d --rm --name postgres -e POSTGRES_PASSWORD=crc -e POSTGRES_USER=crc -e POSTGRES_DB=crc -h 0.0.0.0:5432:5432 $POSTGRES_IMAGE
+sleep 5
+
+echo -e "\n---------------------------------------------------------------\n"
+
+echo "Building image"
+docker build -f "$DOCKERFILE" -t "$TEST_CONTAINER_NAME" .
 
 echo -e "\n---------------------------------------------------------------\n"
 
@@ -52,12 +62,14 @@ docker exec --workdir /workdir "$TEST_CONTAINER_NAME" make install > 'artifacts/
 echo -e "\n---------------------------------------------------------------\n"
 
 echo "Building migrations"
-docker exec --workdir /workdir "$TEST_CONTAINER_NAME" go build -o pt-migration internal/migration/main.go
+docker exec --workdir /workdir "$TEST_CONTAINER_NAME" make pt-migration -B > 'artifacts/build_logs.txt'
+
+cat artifacts/build_logs.txt
 
 echo -e "\n---------------------------------------------------------------\n"
 
 echo "Migrating database"
-docker exec --workdir /workdir "$TEST_CONTAINER_NAME" make run-migration > 'artifacts/migration_logs.txt'
+docker exec --workdir /workdir "$TEST_CONTAINER_NAME" make run-migration -e DB_HOST="localhost" > 'artifacts/migration_logs.txt'
 MIGRATION_RESULT=$?
 
 cat artifacts/migration_logs.txt
@@ -66,8 +78,8 @@ if [ $MIGRATION_RESULT -eq 0 ]; then
     echo "Migration ran successfully"
 else
     echo "Migration failed..."
-    sh "exit 1" 
-    # why is this not exiting the script?
+    sh "exit 1"
+    # stop script execution
     exit 1
 fi
 
