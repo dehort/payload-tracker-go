@@ -21,12 +21,12 @@ var (
 	tableNames = []string{"service", "source", "status"}
 )
 
-type handler struct {
-	db *gorm.DB
+type Handler struct {
+	Db *gorm.DB
 }
 
 // OnMessage takes in each payload status message and processes it
-func (this *handler) onMessage(ctx context.Context, msg *kafka.Message, cfg *config.TrackerConfig) {
+func (this *Handler) OnMessage(ctx context.Context, msg *kafka.Message, cfg *config.TrackerConfig) {
 	// Track the time from beginning of handling the message to the insert
 	start := time.Now()
 	l.Log.Debug("Processing Payload Message ", msg.Value)
@@ -48,88 +48,100 @@ func (this *handler) onMessage(ctx context.Context, msg *kafka.Message, cfg *con
 		return
 	}
 
-	// Sanitize the payload
-	sanitizePayload(payloadStatus)
+err := this.Db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+        // Sanitize the payload
+        sanitizePayload(payloadStatus)
 
-	// Upsert into Payloads Table
-	payload := createPayload(payloadStatus)
+        // Upsert into Payloads Table
+        payload := createPayload(payloadStatus)
 
-	upsertResult, payloadId := queries.UpsertPayloadByRequestId(this.db, payloadStatus.RequestID, payload)
-	if upsertResult.Error != nil {
-		l.Log.Error("ERROR Payload table upsert failed: ", upsertResult.Error)
+        upsertResult, payloadId := queries.UpsertPayloadByRequestId(this.Db, payloadStatus.RequestID, payload)
+        if upsertResult.Error != nil {
+            l.Log.Error("ERROR Payload table upsert failed: ", upsertResult.Error)
+            return upsertResult.Error
+        }
+        sanitizedPayloadStatus.PayloadId = payloadId
+
+        // Check if service/source/status are in table
+        // this section checks the subsiquent DB tables to see if the service_id, source_id, and status_id exist for the given message
+        l.Log.Debug("Adding Status, Sources, and Services to sanitizedPayload")
+
+        // Status & Service: Always defined in the message
+        existingStatus := queries.GetStatusByName(this.Db, payloadStatus.Status)
+
+        existingService := queries.GetServiceByName(this.Db, payloadStatus.Service)
+        if (models.Statuses{}) == existingStatus {
+            statusResult, newStatus := queries.CreateStatusTableEntry(this.Db, payloadStatus.Status)
+            if statusResult.Error != nil {
+                l.Log.Error("Error Creating Statuses Table Entry ERROR: ", statusResult.Error)
+                return statusResult.Error
+            }
+
+            sanitizedPayloadStatus.Status = newStatus
+        } else {
+            sanitizedPayloadStatus.Status = existingStatus
+        }
+
+        if (models.Services{}) == existingService {
+            serviceResult, newService := queries.CreateServiceTableEntry(this.Db, payloadStatus.Service)
+            if serviceResult.Error != nil {
+                l.Log.Error("Error Creating Service Table Entry ERROR: ", serviceResult.Error)
+                return serviceResult.Error
+            }
+
+            sanitizedPayloadStatus.Service = newService
+        } else {
+            sanitizedPayloadStatus.Service = existingService
+        }
+
+        // Sources
+        if payloadStatus.Source != "" {
+            existingSource := queries.GetSourceByName(this.Db, payloadStatus.Source)
+            if (models.Sources{}) == existingSource {
+                result, newSource := queries.CreateSourceTableEntry(this.Db, payloadStatus.Source)
+                if result.Error != nil {
+                    l.Log.Error("Error Creating Sources Table Entry ERROR: ", result.Error)
+                    return result.Error
+                }
+
+                sanitizedPayloadStatus.Source = newSource
+            } else {
+                sanitizedPayloadStatus.Source = existingSource
+            }
+        }
+
+        if payloadStatus.StatusMSG != "" {
+            sanitizedPayloadStatus.StatusMsg = payloadStatus.StatusMSG
+        }
+
+        // Insert Date
+        sanitizedPayloadStatus.Date = payloadStatus.Date.Time
+
+
+        // Insert payload into DB
+        endpoints.ObserveMessageProcessTime(time.Since(start))
+        endpoints.IncMessagesProcessed()
+
+        result := queries.InsertPayloadStatus(this.Db, sanitizedPayloadStatus)
+        if result.Error != nil {
+            endpoints.IncMessageProcessErrors()
+            l.Log.Debug("Failed to insert sanitized PayloadStatus with ERROR: ", result.Error)
+            result = queries.InsertPayloadStatus(this.Db, sanitizedPayloadStatus)
+            if result.Error != nil {
+                l.Log.Debug("Failed to re-insert sanitized PayloadStatus with ERROR: ", result.Error)
+                result = queries.InsertPayloadStatus(this.Db, sanitizedPayloadStatus)
+                if result.Error != nil {
+                    l.Log.Error("Failed final attempt to re-insert PayloadStatus with ERROR: ", result.Error)
+                }
+            }
+        }
+
+		return nil
+	})
+
+	if err != nil {
+		l.Log.Error("Error creating db entry", err)
 		return
-	}
-	sanitizedPayloadStatus.PayloadId = payloadId
-
-	// Check if service/source/status are in table
-	// this section checks the subsiquent DB tables to see if the service_id, source_id, and status_id exist for the given message
-	l.Log.Debug("Adding Status, Sources, and Services to sanitizedPayload")
-
-	// Status & Service: Always defined in the message
-	existingStatus := queries.GetStatusByName(this.db, payloadStatus.Status)
-	existingService := queries.GetServiceByName(this.db, payloadStatus.Service)
-	if (models.Statuses{}) == existingStatus {
-		statusResult, newStatus := queries.CreateStatusTableEntry(this.db, payloadStatus.Status)
-		if statusResult.Error != nil {
-			l.Log.Error("Error Creating Statuses Table Entry ERROR: ", statusResult.Error)
-			return
-		}
-
-		sanitizedPayloadStatus.Status = newStatus
-	} else {
-		sanitizedPayloadStatus.Status = existingStatus
-	}
-
-	if (models.Services{}) == existingService {
-		serviceResult, newService := queries.CreateServiceTableEntry(this.db, payloadStatus.Service)
-		if serviceResult.Error != nil {
-			l.Log.Error("Error Creating Service Table Entry ERROR: ", serviceResult.Error)
-			return
-		}
-
-		sanitizedPayloadStatus.Service = newService
-	} else {
-		sanitizedPayloadStatus.Service = existingService
-	}
-
-	// Sources
-	if payloadStatus.Source != "" {
-		existingSource := queries.GetSourceByName(this.db, payloadStatus.Source)
-		if (models.Sources{}) == existingSource {
-			result, newSource := queries.CreateSourceTableEntry(this.db, payloadStatus.Source)
-			if result.Error != nil {
-				l.Log.Error("Error Creating Sources Table Entry ERROR: ", result.Error)
-				return
-			}
-
-			sanitizedPayloadStatus.Source = newSource
-		} else {
-			sanitizedPayloadStatus.Source = existingSource
-		}
-	}
-
-	if payloadStatus.StatusMSG != "" {
-		sanitizedPayloadStatus.StatusMsg = payloadStatus.StatusMSG
-	}
-
-	// Insert Date
-	sanitizedPayloadStatus.Date = payloadStatus.Date.Time
-
-	// Insert payload into DB
-	endpoints.ObserveMessageProcessTime(time.Since(start))
-	endpoints.IncMessagesProcessed()
-	result := queries.InsertPayloadStatus(this.db, sanitizedPayloadStatus)
-	if result.Error != nil {
-		endpoints.IncMessageProcessErrors()
-		l.Log.Debug("Failed to insert sanitized PayloadStatus with ERROR: ", result.Error)
-		result = queries.InsertPayloadStatus(this.db, sanitizedPayloadStatus)
-		if result.Error != nil {
-			l.Log.Debug("Failed to re-insert sanitized PayloadStatus with ERROR: ", result.Error)
-			result = queries.InsertPayloadStatus(this.db, sanitizedPayloadStatus)
-			if result.Error != nil {
-				l.Log.Error("Failed final attempt to re-insert PayloadStatus with ERROR: ", result.Error)
-			}
-		}
 	}
 }
 

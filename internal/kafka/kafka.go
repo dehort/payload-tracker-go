@@ -69,8 +69,8 @@ func NewConsumerEventLoop(
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	handler := &handler{
-		db: db,
+	handler := &Handler{
+		Db: db,
 	}
 
 	run := true
@@ -90,7 +90,7 @@ func NewConsumerEventLoop(
 			switch e := event.(type) {
 			case *kafka.Message:
 				endpoints.IncConsumedMessages()
-				handler.onMessage(ctx, e, cfg)
+				handler.OnMessage(ctx, e, cfg)
 			case kafka.Error:
 				endpoints.IncConsumeErrors()
 				l.Log.Errorf("Consumer error: %v (%v)\n", e.Code(), e)

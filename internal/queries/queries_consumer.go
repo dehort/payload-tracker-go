@@ -1,6 +1,8 @@
 package queries
 
 import (
+    "fmt"
+
 	models "github.com/redhatinsights/payload-tracker-go/internal/models/db"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -12,24 +14,59 @@ const (
 )
 
 var (
-	services []models.Services
-	statuses []models.Statuses
+	g_services map[string]models.Services
+	g_statuses map[string]models.Statuses
 	sources  []models.Sources
 )
 
+func init() {
+    g_services = make(map[string]models.Services)
+    g_statuses = make(map[string]models.Statuses)
+}
+
 func GetServiceByName(db *gorm.DB, service_id string) models.Services {
+    fmt.Println("GetServicByName")
+
+/*
+    serv, ok := g_services[service_id]
+    if ok {
+        fmt.Println("\t cached")
+        return serv
+    }
+*/
+
 	var service models.Services
 	db.Where("name = ?", service_id).First(&service)
+/*
+	if (models.Services{}) != service {
+        g_services[service_id] = service
+    }
+*/
 	return service
 }
 
 func GetStatusByName(db *gorm.DB, status_id string) models.Statuses {
+    fmt.Println("GetStatusByName")
+/*
+    stat, ok := g_statuses[status_id]
+    if ok {
+        fmt.Println("\t cached")
+        return stat
+    }
+*/
+
 	var status models.Statuses
 	db.Where("name = ?", status_id).First(&status)
+/*
+	if (models.Statuses{}) != status {
+        g_statuses[status_id] = status
+    }
+*/
 	return status
 }
 
 func GetSourceByName(db *gorm.DB, source_id string) models.Sources {
+    fmt.Println("GetSourceByName")
 	var source models.Sources
 	db.Where("name = ?", source_id).First(&source)
 	return source
@@ -79,6 +116,7 @@ func CreateSourceTableEntry(db *gorm.DB, name string) (result *gorm.DB, source m
 }
 
 func CreateServiceTableEntry(db *gorm.DB, name string) (result *gorm.DB, service models.Services) {
+    fmt.Println("CreateServiceTableEntry")
 	newService := models.Services{Name: name}
 	results := db.Create(&newService)
 
