@@ -1,6 +1,7 @@
 package queries
 
 import (
+    "fmt"
 	models "github.com/redhatinsights/payload-tracker-go/internal/models/db"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -85,9 +86,31 @@ func CreateServiceTableEntry(db *gorm.DB, name string) (result *gorm.DB, service
 	return results, newService
 }
 
+var bufferedPayloadStatus []*models.PayloadStatuses
+
 func InsertPayloadStatus(db *gorm.DB, payloadStatus *models.PayloadStatuses) (tx *gorm.DB) {
 	if (models.Sources{}) == payloadStatus.Source {
 		return db.Omit("source_id").Create(&payloadStatus)
 	}
-	return db.Create(&payloadStatus)
+
+    batchSize := 100
+
+    if bufferedPayloadStatus == nil {
+        bufferedPayloadStatus = make([]*models.PayloadStatuses, 0, batchSize)
+    }
+
+    bufferedPayloadStatus = append(bufferedPayloadStatus, payloadStatus)
+
+    if len(bufferedPayloadStatus) >= batchSize {
+        fmt.Println("Bulk create")
+        db.CreateInBatches(bufferedPayloadStatus, batchSize)
+        //bufferedPayloadStatus = nil
+        bufferedPayloadStatus = bufferedPayloadStatus[:0]
+    } else {
+        fmt.Println("SKIP!!")
+    }
+
+    return db
+
+	//return db.Create(&payloadStatus)
 }

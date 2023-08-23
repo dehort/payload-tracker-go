@@ -26,7 +26,7 @@ type RedisBasedMessageHandler struct {
 	config *config.TrackerConfig
 }
 
-func (this *RedisBasedMessageHandler) onMessage(ctx context.Context, msg *kafka.Message) {
+func (this *RedisBasedMessageHandler) OnMessage(ctx context.Context, msg *kafka.Message) {
 
 	callDurationTimer := prometheus.NewTimer(metrics.redisInsertDuration)
 	defer callDurationTimer.ObserveDuration()

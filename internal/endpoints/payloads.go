@@ -19,8 +19,7 @@ import (
 var (
 	RetrievePayloads          = queries.RetrievePayloads
 	RetrieveRequestIdPayloads = queries.RetrieveRequestIdPayloadsWithDB
-	RequestArchiveLink        = requestArchiveLink
-	Db                        = getDb
+	Db = getDb
 )
 
 func CreatePayloadArchiveLinkHandler(cfg config.TrackerConfig) http.HandlerFunc {
@@ -95,7 +94,7 @@ func RequestIdPayloads(retrieveRequestIdPayloads queries.RetrieveRequestIdPayloa
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		reqID := chi.URLParam(r, "request_id")
-		verbosity = r.URL.Query().Get("verbosity")
+		verbosity := r.URL.Query().Get("verbosity")
 
 		q, err := initQuery(r)
 

@@ -23,7 +23,7 @@ var (
 )
 
 type MessageHandler interface {
-	onMessage(ctx context.Context, msg *kafka.Message)
+	OnMessage(ctx context.Context, msg *kafka.Message)
 }
 
 func NewDBBasedMessageHandler(db *gorm.DB, cfg *config.TrackerConfig) MessageHandler {
@@ -39,7 +39,7 @@ type DBBasedMessageHandler struct {
 }
 
 // OnMessage takes in each payload status message and processes it
-func (this *DBBasedMessageHandler) onMessage(ctx context.Context, msg *kafka.Message) {
+func (this *DBBasedMessageHandler) OnMessage(ctx context.Context, msg *kafka.Message) {
 
 	callDurationTimer := prometheus.NewTimer(metrics.dbInsertDuration)
 	defer callDurationTimer.ObserveDuration()
@@ -51,7 +51,7 @@ func (this *DBBasedMessageHandler) onMessage(ctx context.Context, msg *kafka.Mes
 
 	if err := json.Unmarshal(msg.Value, payloadStatus); err != nil {
 		// PROBE: Add probe here for error unmarshaling JSON
-		if cfg.DebugConfig.LogStatusJson {
+		if this.config.DebugConfig.LogStatusJson {
 			l.Log.Error("ERROR: Unmarshaling Payload Status Event: ", err, " Raw Message: ", string(msg.Value))
 		} else {
 			l.Log.Error("ERROR: Unmarshaling Payload Status Event: ", err)
@@ -59,7 +59,7 @@ func (this *DBBasedMessageHandler) onMessage(ctx context.Context, msg *kafka.Mes
 		return
 	}
 
-	if !validateRequestID(cfg.RequestConfig.ValidateRequestIDLength, payloadStatus.RequestID) {
+	if !validateRequestID(this.config.RequestConfig.ValidateRequestIDLength, payloadStatus.RequestID) {
 		return
 	}
 
@@ -132,12 +132,13 @@ func (this *DBBasedMessageHandler) onMessage(ctx context.Context, msg *kafka.Mes
 
 	fmt.Println("inserting payload")
 	// Insert payload into DB
-	endpoints.ObserveMessageProcessTime(time.Since(start))
-	endpoints.IncMessagesProcessed()
+	//	endpoints.ObserveMessageProcessTime(time.Since(start))
+	//	endpoints.IncMessagesProcessed()
 
 	result := queries.InsertPayloadStatus(this.db, sanitizedPayloadStatus)
 	fmt.Println("inserted payload")
 	fmt.Println("result:", result)
+    /*
 	if result.Error != nil {
 		endpoints.IncMessageProcessErrors()
 		l.Log.Debug("Failed to insert sanitized PayloadStatus with ERROR: ", result.Error)
@@ -150,6 +151,7 @@ func (this *DBBasedMessageHandler) onMessage(ctx context.Context, msg *kafka.Mes
 			}
 		}
 	}
+    */
 }
 
 func validateRequestID(requestIDLength int, requestID string) bool {
