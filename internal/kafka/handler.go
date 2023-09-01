@@ -18,10 +18,6 @@ import (
 	"github.com/redhatinsights/payload-tracker-go/internal/queries"
 )
 
-var (
-	tableNames = []string{"service", "source", "status"}
-)
-
 type MessageHandler interface {
 	OnMessage(ctx context.Context, msg *kafka.Message)
 }
@@ -47,7 +43,7 @@ func (this *DBBasedMessageHandler) OnMessage(ctx context.Context, msg *kafka.Mes
 	l.Log.Debug("Processing Payload Message ", msg.Value)
 
 	payloadStatus := &message.PayloadStatusMessage{}
-	sanitizedPayloadStatus := &models.PayloadStatuses{}
+//	sanitizedPayloadStatus := &models.Payload{}
 
 	if err := json.Unmarshal(msg.Value, payloadStatus); err != nil {
 		// PROBE: Add probe here for error unmarshaling JSON
@@ -69,76 +65,14 @@ func (this *DBBasedMessageHandler) OnMessage(ctx context.Context, msg *kafka.Mes
 	// Upsert into Payloads Table
 	payload := createPayload(payloadStatus)
 
-	upsertResult, payloadId := queries.UpsertPayloadByRequestId(this.db, payloadStatus.RequestID, payload)
-	if upsertResult.Error != nil {
-		l.Log.Error("ERROR Payload table upsert failed: ", upsertResult.Error)
-		return
-	}
-	sanitizedPayloadStatus.PayloadId = payloadId
-
 	// Check if service/source/status are in table
 	// this section checks the subsiquent DB tables to see if the service_id, source_id, and status_id exist for the given message
 	l.Log.Debug("Adding Status, Sources, and Services to sanitizedPayload")
 
-	// Status & Service: Always defined in the message
-	existingStatus := queries.GetStatusByName(this.db, payloadStatus.Status)
-	if (models.Statuses{}) == existingStatus {
-		statusResult, newStatus := queries.CreateStatusTableEntry(this.db, payloadStatus.Status)
-		if statusResult.Error != nil {
-			l.Log.Error("Error Creating Statuses Table Entry ERROR: ", statusResult.Error)
-			return
-		}
-
-		sanitizedPayloadStatus.Status = newStatus
-	} else {
-		sanitizedPayloadStatus.Status = existingStatus
-	}
-
-	existingService := queries.GetServiceByName(this.db, payloadStatus.Service)
-	if (models.Services{}) == existingService {
-		serviceResult, newService := queries.CreateServiceTableEntry(this.db, payloadStatus.Service)
-		if serviceResult.Error != nil {
-			l.Log.Error("Error Creating Service Table Entry ERROR: ", serviceResult.Error)
-			return
-		}
-
-		sanitizedPayloadStatus.Service = newService
-	} else {
-		sanitizedPayloadStatus.Service = existingService
-	}
-
-	// Sources
-	if payloadStatus.Source != "" {
-		existingSource := queries.GetSourceByName(this.db, payloadStatus.Source)
-		if (models.Sources{}) == existingSource {
-			result, newSource := queries.CreateSourceTableEntry(this.db, payloadStatus.Source)
-			if result.Error != nil {
-				l.Log.Error("Error Creating Sources Table Entry ERROR: ", result.Error)
-				return
-			}
-
-			sanitizedPayloadStatus.Source = newSource
-		} else {
-			sanitizedPayloadStatus.Source = existingSource
-		}
-	}
-
-	if payloadStatus.StatusMSG != "" {
-		sanitizedPayloadStatus.StatusMsg = payloadStatus.StatusMSG
-	}
-
-	// Insert Date
-	sanitizedPayloadStatus.Date = payloadStatus.Date.Time
-
-	fmt.Println("inserting payload")
-	// Insert payload into DB
-	//	endpoints.ObserveMessageProcessTime(time.Since(start))
-	//	endpoints.IncMessagesProcessed()
-
-	result := queries.InsertPayloadStatus(this.db, sanitizedPayloadStatus)
+	result := queries.InsertPayload(this.db, payload)
 	fmt.Println("inserted payload")
 	fmt.Println("result:", result)
-    /*
+/*
 	if result.Error != nil {
 		endpoints.IncMessageProcessErrors()
 		l.Log.Debug("Failed to insert sanitized PayloadStatus with ERROR: ", result.Error)
@@ -151,7 +85,7 @@ func (this *DBBasedMessageHandler) OnMessage(ctx context.Context, msg *kafka.Mes
 			}
 		}
 	}
-    */
+*/
 }
 
 func validateRequestID(requestIDLength int, requestID string) bool {
@@ -174,16 +108,19 @@ func sanitizePayload(msg *message.PayloadStatusMessage) {
 	}
 }
 
-func createPayload(msg *message.PayloadStatusMessage) (table models.Payloads) {
-	payloadTable := models.Payloads{
-		Id:          msg.PayloadID,
+func createPayload(msg *message.PayloadStatusMessage) (table *models.Payload) {
+	payloadRecord := models.Payload{
 		RequestId:   msg.RequestID,
 		Account:     msg.Account,
 		OrgId:       msg.OrgID,
 		SystemId:    msg.SystemID,
 		CreatedAt:   msg.Date.Time,
 		InventoryId: msg.InventoryID,
+        Service:     msg.Service,
+        Source: msg.Source,
+        Status: msg.Status,
+        StatusMsg:  msg.StatusMSG,
+        //Date: time.Time(msg.Date),
 	}
-
-	return payloadTable
+	return &payloadRecord
 }

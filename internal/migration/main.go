@@ -15,14 +15,11 @@ func main() {
 	db.DbConnect(cfg)
 
 	db.DB.AutoMigrate(
-		&models.Services{},
-		&models.Sources{},
-		&models.Statuses{},
-		&models.PayloadStatuses{},
-		&models.Payloads{},
+		&models.Payload{},
 	)
 
-	db.DB.Exec("ALTER SEQUENCE payloads_id_seq AS bigint")
+//	db.DB.Exec("ALTER SEQUENCE payloads_id_seq AS bigint")
+	db.DB.Exec("ALTER TABLE payloads alter column id add generated always as identity")
 
 	logging.Log.Info("DB Migration Complete")
 }
