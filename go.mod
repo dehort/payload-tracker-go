@@ -7,10 +7,11 @@ require (
 	github.com/confluentinc/confluent-kafka-go v1.7.0
 	github.com/go-chi/chi/v5 v5.0.3
 	github.com/go-chi/httprate v0.6.0
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.3.0
 	github.com/kr/pretty v0.2.1 // indirect
-	github.com/onsi/ginkgo v1.16.4
-	github.com/onsi/gomega v1.16.0
+	github.com/onsi/ginkgo v1.16.5
+	github.com/onsi/gomega v1.18.1
 	github.com/prometheus/client_golang v1.11.1
 	github.com/redhatinsights/app-common-go v1.6.3
 	github.com/redhatinsights/platform-go-middlewares v0.9.0
