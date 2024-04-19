@@ -5,10 +5,6 @@ all: build-all
 
 build-all: pt-api pt-consumer pt-migration
 
-deps:
-	go version
-	go mod download
-
 pt-api:
 	go build -o pt-api cmd/payload-tracker-api/main.go
 
