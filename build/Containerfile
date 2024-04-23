@@ -35,6 +35,7 @@ RUN FULL_RHEL=$(microdnf repolist --enabled | grep rhel-8) ; \
 
 RUN microdnf install --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
         postgresql12 && \
+    microdnf update -y \
     microdnf clean all
 
 USER 1001
