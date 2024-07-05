@@ -120,7 +120,7 @@ objects:
       schedule: ${CLEANER_SCHEDULE}
       suspend: ${{CLEANER_SUSPEND}}
       podSpec:
-        image: quay.io/cloudservices/payload-tracker-go:${IMAGE_TAG}
+        image: registry.redhat.io/rhel8/postgresql-12:latest
         restartPolicy: Never
         command:
           - ./tools/cron-job.sh
