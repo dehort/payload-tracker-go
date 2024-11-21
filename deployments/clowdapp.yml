@@ -175,9 +175,9 @@ objects:
       echo "MAX_NUMBER_OF_RETRIES: $MAX_NUMBER_OF_RETRIES"
       echo "SLEEP_TIME: $SLEEP_TIME"
       
-      psql -c "DELETE FROM payload_statuses WHERE created_at < (NOW() - interval '$RETENTION_DAYS days');"
+      #psql -c "DELETE FROM payload_statuses WHERE created_at < (NOW() - interval '$RETENTION_DAYS days');"
+      #psql -c "VACUUM ANALYZE payload_statuses;"
       psql -c "DELETE FROM payloads WHERE created_at < (NOW() - interval '$RETENTION_DAYS days');"
-      psql -c "VACUUM ANALYZE payload_statuses;"
       psql -c "VACUUM ANALYZE payloads;"
       
       for i in $(seq 1 ${MAX_NUMBER_OF_RETRIES})
