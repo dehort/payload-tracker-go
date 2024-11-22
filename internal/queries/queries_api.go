@@ -109,7 +109,7 @@ var RetrievePayloads = func(dbQuery *gorm.DB, page int, pageSize int, apiQuery s
 
 	orderString := fmt.Sprintf("%s %s", apiQuery.SortBy, apiQuery.SortDir)
 
-	dbQuery.Model(&payloads).Count(&count)
+	//dbQuery.Model(&payloads).Count(&count)
 	dbQuery.Order(orderString).Limit(pageSize).Offset(pageSize * page).Find(&payloads)
 
 	return count, payloads
@@ -158,7 +158,7 @@ var RetrieveStatuses = func(dbQuery *gorm.DB, apiQuery structs.Query) (int64, []
 	dbQuery = chainTimeConditions("payload_statuses.created_at", apiQuery, dbQuery)
 
 	orderString := fmt.Sprintf("%s %s", apiQuery.SortBy, apiQuery.SortDir)
-	dbQuery.Model(&payloads).Count(&count)
+	//dbQuery.Model(&payloads).Count(&count)
 	dbQuery.Order(orderString).Limit(pageSize).Offset(pageSize * page).Scan(&payloads)
 
 	return count, payloads
