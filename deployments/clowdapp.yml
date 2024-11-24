@@ -177,9 +177,7 @@ objects:
       
       #psql -c "DELETE FROM payload_statuses WHERE created_at < (NOW() - interval '$RETENTION_DAYS days');"
       #psql -c "VACUUM ANALYZE payload_statuses;"
-      psql -c "DELETE FROM payloads WHERE created_at < (NOW() - interval '$RETENTION_DAYS days');"
-      psql -c "VACUUM ANALYZE payloads;"
-      
+     
       for i in $(seq 1 ${MAX_NUMBER_OF_RETRIES})
       do
         echo "Creating partition"
@@ -188,7 +186,15 @@ objects:
         psql -c "SELECT create_partition(NOW()::DATE + INTERVAL '1 DAY', NOW()::DATE + INTERVAL '2 DAY');" && break || sleep $SLEEP_TIME
       done
       
+      echo "Deleting partition"
       psql -c "SELECT drop_partition(NOW()::DATE - INTERVAL '$RETENTION_DAYS DAY', NOW()::DATE - (($RETENTION_DAYS - 1) || ' DAY')::INTERVAL);"
+
+      echo "Deleting payloads"
+      psql -c "DELETE FROM payloads WHERE created_at < (NOW() - interval '$RETENTION_DAYS days');"
+
+      echo "Vacuuming payloads"
+      psql -c "VACUUM ANALYZE payloads;"
+
 
 parameters:
 - description: Initial amount of memory the payload-tracker container will request.
