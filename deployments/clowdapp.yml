@@ -261,7 +261,7 @@ parameters:
 - name: CLEANER_SUSPEND
   value: 'true'
 - name: CLEANER_SCHEDULE
-  value: "00 10 * * *"
+  value: "00 17 * * *"
 - name: DB_SECRET_DBNAME_KEY
   description: Key of the database name field in the payload-tracker-db-creds secret
   value: db.name
